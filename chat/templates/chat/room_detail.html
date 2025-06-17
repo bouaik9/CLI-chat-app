@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ room.name }}</title>
+</head>
+<body>
+    <h1>Room: {{ room.name }}</h1>
+    <a href="{% url 'room_list' %}">Back to rooms</a>
+    <ul id="messages">
+        {% for message in messages %}
+            <li>
+                <strong>{{ message.user.username }}:</strong>
+                {{ message.content }}
+                <small>{{ message.timestamp|date:"H:i" }}</small>
+                {% if message.is_flagged %}
+                    <span style="color:red;">[Flagged]</span>
+                {% endif %}
+            </li>
+        {% empty %}
+            <li>No messages yet.</li>
+        {% endfor %}
+    </ul>
+    <!-- Placeholder for AJAX chat input -->
+    <form id="chat-form" method="post" action="{% url 'send_message' %}">
+        {% csrf_token %}
+        <input type="text" id="chat-message-input" name="content" autocomplete="off" placeholder="Type your message..." />
+        <input type="hidden" name="room_slug" value="{{ room.slug }}" />
+        <button type="submit">Send</button>
+    </form>
+    <script>
+    document.getElementById('chat-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const input = document.getElementById('chat-message-input');
+        const content = input.value.trim();
+        if (!content) return;
+
+        fetch("{% url 'send_message' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: `content=${encodeURIComponent(content)}&room_slug={{ room.slug }}`
+        })
+        .then(response => {
+            if (response.ok) {
+                input.value = '';
+                fetchMessages();
+            }
+        });
+    });
+    </script>
+    <!-- You can add JS for WebSocket here -->
+</body>
+<script>
+function fetchMessages() {
+    fetch("{% url 'fetch_messages' room.slug %}")
+        .then(response => response.json())
+        .then(data => {
+            const messagesUl = document.getElementById('messages');
+            messagesUl.innerHTML = '';
+            if (data.messages.length === 0) {
+                messagesUl.innerHTML = '<li>No messages yet.</li>';
+            } else {
+                data.messages.forEach(message => {
+                    let flagged = message.is_flagged ? '<span style="color:red;">[Flagged]</span>' : '';
+                    messagesUl.innerHTML += `<li>
+                        <strong>${message.user}:</strong>
+                        ${message.content}
+                        <small>${message.timestamp}</small>
+                        ${flagged}
+                    </li>`;
+                });
+            }
+        });
+}
+setInterval(fetchMessages, 1000);
+fetchMessages();
+</script>
+
+</html>
