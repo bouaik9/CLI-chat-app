@@ -95,3 +95,6 @@ CHANNEL_LAYERS = {
 }
 
 CELERY_BROKER_URL = 'amqp://localhost'
+
+ASGI_APPLICATION = 'chat_project.asgi.application'
+

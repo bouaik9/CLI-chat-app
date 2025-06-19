@@ -6,6 +6,7 @@ from django.contrib import messages # Import messages for user feedback
 from .tasks import moderate_message
 from django.http import HttpResponse
 from django.http import JsonResponse
+
 def room_detail(request, slug):
     if not request.user.is_authenticated:
         print('yes')
@@ -13,6 +14,7 @@ def room_detail(request, slug):
     room = Room.objects.get(slug=slug)
     messages = Message.objects.filter(room=room).order_by('-timestamp')
     return render(request, 'chat/room_detail.html', {'room': room, 'messages': messages})
+
 def room_list(request):
     if not request.user.is_authenticated:
         return redirect('login')
@@ -40,7 +42,7 @@ def fetch_messages(request, slug):
         room = Room.objects.get(slug=slug)
     except Room.DoesNotExist:
         return JsonResponse({'error': 'Room not found'}, status=404)
-    messages = Message.objects.filter(room=room).order_by('-timestamp')
+    messages = Message.objects.filter(room=room).order_by('timestamp')
     messages_data = [
         {
             'id': msg.id,

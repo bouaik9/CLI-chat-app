@@ -2,6 +2,20 @@
 <html>
 <head>
     <title>{{ room.name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+        h1 { background: #4a90e2; color: #fff; margin: 0; padding: 20px; }
+        a { color: #4a90e2; text-decoration: none; margin: 20px; display: inline-block; }
+        a:hover { text-decoration: underline; }
+        #messages { list-style: none; padding: 0; margin: 20px auto; max-width: 600px; }
+        #messages li { background: #fff; margin-bottom: 10px; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px #ccc; }
+        form { display: flex; justify-content: center; margin: 20px auto; max-width: 600px; }
+        input[type="text"] { flex: 1; padding: 10px; border-radius: 4px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; border: none; background: #4a90e2; color: #fff; border-radius: 4px; margin-left: 10px; cursor: pointer; }
+        button:hover { background: #357ab8; }
+        small { color: #888; margin-left: 10px; }
+        [style*="color:red"] { font-weight: bold; }
+    </style>
 </head>
 <body>
     <h1>Room: {{ room.name }}</h1>
@@ -20,62 +34,46 @@
             <li>No messages yet.</li>
         {% endfor %}
     </ul>
-    <!-- Placeholder for AJAX chat input -->
-    <form id="chat-form" method="post" action="{% url 'send_message' %}">
-        {% csrf_token %}
-        <input type="text" id="chat-message-input" name="content" autocomplete="off" placeholder="Type your message..." />
-        <input type="hidden" name="room_slug" value="{{ room.slug }}" />
+    <form id="chat-form" autocomplete="off">
+        <input type="text" id="chat-message-input" autocomplete="off" placeholder="Type your message..." />
         <button type="submit">Send</button>
     </form>
     <script>
-    document.getElementById('chat-form').addEventListener('submit', function(e) {
+    // WebSocket setup
+    const roomName = "{{ room.slug }}";
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const chatSocket = new WebSocket(
+        wsScheme + '://' + window.location.host +
+        '/ws/chat/' + roomName + '/'
+    );
+
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        const messagesUl = document.getElementById('messages');
+        let flagged = data.is_flagged ? '<span style="color:red;">[Flagged]</span>' : '';
+        messagesUl.innerHTML += `<li>
+            <strong>${data.user}:</strong>
+            ${data.message}
+            <small>${data.timestamp}</small>
+            ${flagged}
+        </li>`;
+        messagesUl.scrollTop = messagesUl.scrollHeight;
+    };
+
+    chatSocket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+
+    document.getElementById('chat-form').onsubmit = function(e) {
         e.preventDefault();
         const input = document.getElementById('chat-message-input');
-        const content = input.value.trim();
-        if (!content) return;
-
-        fetch("{% url 'send_message' %}", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "X-CSRFToken": document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: `content=${encodeURIComponent(content)}&room_slug={{ room.slug }}`
-        })
-        .then(response => {
-            if (response.ok) {
-                input.value = '';
-                fetchMessages();
-            }
-        });
-    });
+        const message = input.value.trim();
+        if (!message) return;
+        chatSocket.send(JSON.stringify({
+            'message': message
+        }));
+        input.value = '';
+    };
     </script>
-    <!-- You can add JS for WebSocket here -->
 </body>
-<script>
-function fetchMessages() {
-    fetch("{% url 'fetch_messages' room.slug %}")
-        .then(response => response.json())
-        .then(data => {
-            const messagesUl = document.getElementById('messages');
-            messagesUl.innerHTML = '';
-            if (data.messages.length === 0) {
-                messagesUl.innerHTML = '<li>No messages yet.</li>';
-            } else {
-                data.messages.forEach(message => {
-                    let flagged = message.is_flagged ? '<span style="color:red;">[Flagged]</span>' : '';
-                    messagesUl.innerHTML += `<li>
-                        <strong>${message.user}:</strong>
-                        ${message.content}
-                        <small>${message.timestamp}</small>
-                        ${flagged}
-                    </li>`;
-                });
-            }
-        });
-}
-setInterval(fetchMessages, 1000);
-fetchMessages();
-</script>
-
 </html>
